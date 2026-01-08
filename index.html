@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Info Server Minecraft</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Roboto', sans-serif;
+      background: linear-gradient(135deg, #2C6DB0, #6EC1E4);
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container {
+      background: rgba(0,0,0,0.6);
+      padding: 30px;
+      border-radius: 20px;
+      width: 350px;
+      text-align: center;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+
+    input {
+      width: 80%;
+      padding: 10px;
+      border-radius: 10px;
+      border: none;
+      margin-bottom: 15px;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 10px;
+      background-color: #fff;
+      color: #2C6DB0;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background-color: #2C6DB0;
+      color: #fff;
+    }
+
+    .server-info {
+      margin-top: 20px;
+      display: none;
+      text-align: center;
+    }
+
+    .server-info img {
+      width: 64px;
+      height: 64px;
+      border-radius: 15px; /* angoli medi */
+      margin-bottom: 10px;
+    }
+
+    .motd {
+      margin: 10px 0;
+      font-weight: bold;
+      line-height: 1.4;
+    }
+
+    .players {
+      margin-top: 10px;
+      font-size: 18px; /* più grande */
+      font-weight: bold;
+      color: #ffd700;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Monitora il tuo Server Minecraft</h1>
+    <input type="text" id="ipInput" placeholder="Inserisci IP del server">
+    <button onclick="getServerInfo()">Cerca</button>
+
+    <div class="server-info" id="serverInfo">
+      <img id="serverIcon" src="" alt="Icona server">
+      <h2 id="serverName"></h2>
+      <div class="motd" id="serverMotd"></div>
+      <div class="players" id="serverPlayers"></div>
+    </div>
+  </div>
+
+  <script>
+    async function getServerInfo() {
+      const ip = document.getElementById('ipInput').value;
+      if(!ip) return alert("Inserisci un IP valido!");
+
+      try {
+        const res = await fetch(`https://api.mcsrvstat.us/2/${ip}`);
+        const data = await res.json();
+
+        if (!data.online) {
+          alert("Server offline o IP non valido!");
+          return;
+        }
+
+        document.getElementById('serverIcon').src = data.icon || "https://via.placeholder.com/64";
+
+        document.getElementById('serverName').innerText = data.hostname || ip;
+
+        function applyMinecraftFormatting(text) {
+          let result = "";
+          let color = "#FFFFFF";
+          let bold = false, italic = false, underline = false, strikethrough = false, obfuscated = false;
+
+          for (let i = 0; i < text.length; i++) {
+            if (text[i] === '§' && i + 1 < text.length) {
+              const code = text[i + 1].toLowerCase();
+              i++;
+
+              if (code === "l") { bold = true; continue; }
+              if (code === "o") { italic = true; continue; }
+              if (code === "n") { underline = true; continue; }
+              if (code === "m") { strikethrough = true; continue; }
+              if (code === "k") { obfuscated = true; continue; }
+              if (code === "r") { color = "#FFFFFF"; bold = italic = underline = strikethrough = obfuscated = false; continue; }
+
+              const colors = {
+                "0":"#000000","1":"#0000AA","2":"#00AA00","3":"#00AAAA","4":"#AA0000",
+                "5":"#AA00AA","6":"#FFAA00","7":"#AAAAAA","8":"#555555","9":"#5555FF",
+                "a":"#55FF55","b":"#55FFFF","c":"#FF5555","d":"#FF55FF","e":"#FFFF55","f":"#FFFFFF"
+              };
+              if (code in colors) { color = colors[code]; continue; }
+
+              if (code === "x" && i + 12 <= text.length) {
+                let hex = "";
+                for (let j = 0; j < 6; j++) {
+                  hex += text[i+2 + j*2 +1];
+                }
+                color = "#" + hex;
+                i += 12;
+                continue;
+              }
+
+            } else {
+              let span = `<span style="color:${color}`;
+              if (bold) span += ";font-weight:bold";
+              if (italic) span += ";font-style:italic";
+              if (underline) span += ";text-decoration:underline";
+              if (strikethrough) span += ";text-decoration:line-through";
+              span += `">${obfuscated ? randomChar() : text[i]}</span>`;
+              result += span;
+            }
+          }
+          return result;
+        }
+
+        function randomChar() {
+          const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+          return chars[Math.floor(Math.random() * chars.length)];
+        }
+
+        let motdText = data.motd?.raw?.join('\n') || "Nessuna MOTD";
+        let motdHtml = motdText.split('\n').map(line => applyMinecraftFormatting(line)).join('<br>');
+        document.getElementById('serverMotd').innerHTML = motdHtml;
+
+        document.getElementById('serverPlayers').innerText = `Giocatori online: ${data.players?.online || 0} / ${data.players?.max || 0}`;
+
+        document.getElementById('serverInfo').style.display = 'block';
+
+      } catch(err) {
+        console.error(err);
+        alert("Errore nel recuperare i dati!");
+      }
+    }
+  </script>
+</body>
+</html>
